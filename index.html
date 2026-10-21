@@ -19,6 +19,7 @@
             padding: 20px;
             display: flex;
             justify-content: center;
+            align-items: center;
         }
 
         @keyframes gradientBG {
@@ -59,14 +60,12 @@
             .no-print { display: none !important; }
             .calendar-header h2 { background: none; color: black; -webkit-text-fill-color: black; }
             .day-cell { border: 1px solid #ccc; background: white !important; }
-            .day-number { color: black; }
         }
     </style>
 </head>
-<body class="flex justify-center items-center">
+<body>
 
-    <div class="calendar-wrapper">
-        <!-- Top Status & Actions Bar -->
+    <div class="calendar-wrapper" id="mainAppContainer">
         <div class="flex justify-between items-center mb-5 pb-4 border-b border-white/10 flex-wrap gap-4">
             <div class="flex items-center gap-3">
                 <div class="text-lg font-semibold text-cyan-400 drop-shadow" id="liveClock">&#128338; Yükleniyor...</div>
@@ -89,7 +88,6 @@
             </div>
         </div>
 
-        <!-- Weekdays Grid -->
         <div class="grid grid-cols-7 gap-2.5 mb-2.5">
             <div class="text-center font-semibold text-sm uppercase text-white/60 py-2">Pazartesi</div>
             <div class="text-center font-semibold text-sm uppercase text-white/60 py-2">Salı</div>
@@ -114,7 +112,6 @@
         </div>
     </div>
 
-    <!-- Custom Modal Dialog (Alert/Prompt alternative) -->
     <div id="customModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden">
         <div class="bg-slate-900 border border-white/20 p-6 rounded-2xl max-w-md w-full mx-4 shadow-2xl">
             <h3 id="modalTitle" class="text-lg font-bold text-cyan-400 mb-3">Nöbet Değişikliği</h3>
@@ -136,13 +133,11 @@
         </div>
     </div>
 
-    <!-- Firebase SDK Imports & Realtime Sync Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global environment variables provided by container
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'nobet-cizelgesi-app';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "demo-key",
@@ -170,11 +165,13 @@
         let currentMonth = todayReal.getMonth();
         const monthNames = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 
-        // Clock runner
         function updateClock() {
             const now = new Date();
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            document.getElementById('liveClock').innerHTML = `&#128338; ${now.toLocaleDateString('tr-TR', options)} - ${now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+            const clockEl = document.getElementById('liveClock');
+            if(clockEl) {
+                clockEl.innerHTML = `&#128338; ${now.toLocaleDateString('tr-TR', options)} - ${now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+            }
         }
         setInterval(updateClock, 1000);
         updateClock();
@@ -215,7 +212,6 @@
             return getNormalPersonForDate(date);
         }
 
-        // Custom Modal Promise Wrapper
         function showCustomPrompt(title, message, currentPerson) {
             return new Promise((resolve) => {
                 const modal = document.getElementById('customModal');
@@ -228,7 +224,6 @@
                 const confirmBtn = document.getElementById('modalConfirmBtn');
                 const cancelBtn = document.getElementById('modalCancelBtn');
 
-                // Cleanup listeners by cloning nodes
                 const newConfirm = confirmBtn.cloneNode(true);
                 const newCancel = cancelBtn.cloneNode(true);
                 confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
@@ -247,8 +242,11 @@
         }
 
         function renderCalendar() {
-            document.getElementById('monthYearDisplay').innerText = `${monthNames[currentMonth]} ${currentYear}`;
+            const displayEl = document.getElementById('monthYearDisplay');
+            if(displayEl) displayEl.innerText = `${monthNames[currentMonth]} ${currentYear}`;
+            
             const daysContainer = document.getElementById('calendarDays');
+            if(!daysContainer) return;
             daysContainer.innerHTML = '';
 
             const firstDay = new Date(currentYear, currentMonth, 1);
@@ -280,7 +278,6 @@
             
             let classes = ['bg-white/[0.03]', 'border', 'border-white/[0.06]', 'rounded-[14px]', 'min-h-[110px]', 'p-3', 'flex', 'flex-col', 'justify-between', 'cursor-pointer', 'transition', 'duration-200', 'relative', 'hover:bg-white/[0.08]', 'hover:-translate-y-[3px]', 'hover:border-white/20'];
             if (isOtherMonth) classes.push('opacity-30', 'pointer-events-none');
-            if (date.getDay() === 0 || date.getDay() === 6) classes.push('weekend-cell');
             
             if (date.getDate() === todayReal.getDate() && date.getMonth() === todayReal.getMonth() && date.getFullYear() === todayReal.getFullYear()) {
                 classes.push('border-2', 'border-[#38ef7d]', 'shadow-[inset_0_0_15px_rgba(56,239,125,0.2)]');
@@ -311,7 +308,6 @@
                     if (persons.includes(yeniKisi)) {
                         dailyOverrides[dateKey] = yeniKisi;
                         
-                        // Cloud sync update
                         try {
                             const docRef = doc(db, 'artifacts', appId, 'public_data', 'schedule_overrides');
                             await setDoc(docRef, dailyOverrides, { merge: true });
@@ -334,7 +330,6 @@
             renderCalendar();
         };
 
-        // Mail sending system with CC
         window.sendCurrentWeekMail = function() {
             const now = new Date();
             let currentDay = now.getDay();
@@ -389,7 +384,6 @@
             window.location.href = mailtoLink;
         };
 
-        // Firebase Auth & Realtime Listener Initialization
         async function initFirebase() {
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -399,10 +393,11 @@
                 }
 
                 const statusEl = document.getElementById('syncStatus');
-                statusEl.innerText = "Bulut senkronizasyonu aktif (Canlı)";
-                statusEl.className = "text-xs px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-medium";
+                if(statusEl) {
+                    statusEl.innerText = "Bulut senkronizasyonu aktif (Canlı)";
+                    statusEl.className = "text-xs px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-medium";
+                }
 
-                // Realtime subscription
                 const docRef = doc(db, 'artifacts', appId, 'public_data', 'schedule_overrides');
                 onSnapshot(docRef, (docSnap) => {
                     if (docSnap.exists()) {
@@ -416,8 +411,10 @@
             } catch (err) {
                 console.error("Auth / Firebase hatası:", err);
                 const statusEl = document.getElementById('syncStatus');
-                statusEl.innerText = "Çevrimdışı Mod (Yerel depolama)";
-                statusEl.className = "text-xs px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-medium";
+                if(statusEl) {
+                    statusEl.innerText = "Çevrimdışı Mod (Yerel depolama)";
+                    statusEl.className = "text-xs px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-medium";
+                }
             }
 
             renderCalendar();
